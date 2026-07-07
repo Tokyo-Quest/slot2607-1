@@ -1,0 +1,648 @@
+/* ============================================================
+   MID POP ワンボタン・パニック! プロトタイプ
+   キュートでチープなアメコミ調
+   ============================================================ */
+
+/* ---------- フォント ----------
+   基本: Yusei Magic(マーカー手書き・インディーズ感)
+   見出し・決め台詞: Reggae One(荒い叫び系)
+   ドット: DotGothic16(リズムゲーのレトロ演出)
+   ※オフライン運用時のフォント設置は README 参照 */
+:root {
+  --font-pop: 'Yusei Magic', 'Hiragino Maru Gothic ProN', 'Yu Gothic UI', 'Meiryo', sans-serif;
+  --font-impact: 'Reggae One', 'Yusei Magic', 'Hiragino Kaku Gothic StdN', sans-serif;
+  --font-pixel: 'DotGothic16', 'Yusei Magic', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+
+body {
+  background: #111;
+  overflow: hidden;
+  font-family: var(--font-pop);
+  font-weight: 400;   /* Yusei Magic/Reggae Oneは400のみ */
+  cursor: default;
+}
+
+#viewport {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+#stage {
+  position: relative;
+  width: 1920px; height: 1080px;
+  flex: none;
+  background: #222;
+  overflow: hidden;
+  transform-origin: center center;
+}
+#scene { position: absolute; inset: 0; }
+#fx    { position: absolute; inset: 0; pointer-events: none; z-index: 50; }
+#flash {
+  position: absolute; inset: 0; pointer-events: none; z-index: 60;
+  opacity: 0; transition: opacity .25s;
+}
+#debug { position: absolute; inset: 0; pointer-events: none; z-index: 100; display: none; }
+
+/* ---------- トースト(デバッグ切替等の確認表示) ---------- */
+.toast {
+  position: absolute; left: 50%; top: 80px; transform: translateX(-50%);
+  background: rgba(0,0,0,.85); color: #0f8;
+  font-size: 30px; padding: 10px 40px; border-radius: 999px;
+  z-index: 150; pointer-events: none;
+}
+
+/* ---------- デバッグ ---------- */
+.dbg-v { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(0,255,120,.3); }
+.dbg-h { position: absolute; left: 0; right: 0; height: 1px; background: rgba(0,255,120,.3); }
+.dbg-lb { position: absolute; color: rgba(0,255,120,.7); font-size: 12px; font-weight: 400; }
+.dbg-info {
+  position: absolute; right: 12px; top: 12px;
+  background: rgba(0,0,0,.75); color: #0f8; border: 1px solid #0f8;
+  font-size: 20px; padding: 10px 16px; line-height: 1.5; font-weight: 400;
+}
+
+/* ---------- 共通パーツ ---------- */
+.layout-abs { position: absolute; transform: translate(-50%,-50%); }
+
+.halftone {
+  background-image: radial-gradient(rgba(0,0,0,.14) 22%, transparent 23%);
+  background-size: 26px 26px;
+}
+
+.burst {   /* アメコミ吹き出し風の大テキスト */
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%,-50%) rotate(-4deg);
+  font-family: var(--font-impact); font-weight: 400;
+  font-size: 140px; color: #fff; text-align: center; white-space: nowrap;
+  -webkit-text-stroke: 8px #111;
+  paint-order: stroke fill;
+  text-shadow: 10px 10px 0 rgba(0,0,0,.35);
+  z-index: 20;
+  animation: pop-in .25s cubic-bezier(.2,2.2,.4,1) both;
+}
+.burst small { display: block; font-size: 48px; -webkit-text-stroke: 5px #111; }
+
+.mg-title {
+  position: absolute; left: 50%; top: 90px; transform: translateX(-50%) rotate(-2deg);
+  font-family: var(--font-impact); font-weight: 400;
+  font-size: 58px; color: #fff; -webkit-text-stroke: 6px #111; paint-order: stroke fill;
+  background: #111; padding: 8px 50px; border-radius: 16px;
+  box-shadow: 8px 8px 0 rgba(0,0,0,.3);
+  white-space: nowrap; z-index: 15;
+}
+.mg-instr {
+  position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%);
+  font-size: 38px; color: #111; background: #fff;
+  border: 6px solid #111; border-radius: 999px; padding: 12px 60px;
+  box-shadow: 6px 6px 0 rgba(0,0,0,.35);
+  white-space: nowrap; z-index: 15;
+}
+
+.blink { animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+@keyframes pop-in { from { transform: translate(-50%,-50%) scale(0) rotate(-4deg); } }
+@keyframes float-y { 0%,100% { margin-top: 0; } 50% { margin-top: -18px; } }
+
+#stage.shake { animation: shake .4s; }
+@keyframes shake {
+  0%,100% { margin-left: 0; margin-top: 0; }
+  20% { margin-left: -22px; } 40% { margin-left: 20px; margin-top: -10px; }
+  60% { margin-left: -14px; margin-top: 8px; } 80% { margin-left: 8px; }
+}
+
+/* ---------- 画像素材用 ---------- */
+/* 画像プレートを使うUI(仮スタイルの地色・枠を消して文字だけ載せる) */
+.price-badge.img-plain, .push-guide.img-plain {
+  background-color: transparent; border: none; box-shadow: none;
+  color: #fff;
+  -webkit-text-stroke: 5px #6b3a00; paint-order: stroke fill;
+}
+/* face_*.png を使う顔チップ(文字は出さない) */
+.chip.face, .bslot.face, .cutin-face.face, .dial-hole.face, .charge-target.face {
+  background-size: cover; background-position: center top;
+}
+/* 立ち絵(stand_*.png) */
+.cutin-stand {
+  width: 400px; height: 560px; margin: 0 auto;
+  background-size: contain; background-position: center bottom; background-repeat: no-repeat;
+  filter: drop-shadow(10px 10px 0 rgba(0,0,0,.25));
+}
+.result-stand {
+  position: absolute; right: 110px; bottom: 0;
+  width: 460px; height: 680px;
+  background-size: contain; background-position: center bottom; background-repeat: no-repeat;
+  z-index: 4;
+  filter: drop-shadow(8px 8px 0 rgba(0,0,0,.25));
+}
+
+/* ---------- 待機画面(アトラクト) ---------- */
+.sc-attract {
+  background:
+    repeating-conic-gradient(from 0deg at 50% 42%, #ff9ec6 0 12deg, #ff5fa2 12deg 24deg);
+}
+.attract-logo { text-align: center; z-index: 5; }
+.attract-logo .logo-main {
+  font-family: var(--font-impact); font-weight: 400;
+  font-size: 160px; color: #fff; letter-spacing: 6px;
+  -webkit-text-stroke: 10px #111; paint-order: stroke fill;
+  text-shadow: 12px 12px 0 #d81b60;
+  transform: rotate(-3deg);
+}
+.attract-logo .logo-sub {
+  font-family: var(--font-impact); font-weight: 400;
+  font-size: 66px; color: #ffd54f; margin-top: -94px;  /* 100px上げ */
+  -webkit-text-stroke: 7px #111; paint-order: stroke fill;
+  transform: rotate(-3deg);
+}
+.price-badge {
+  position: absolute; right: 170px; top: 150px;
+  width: 260px; height: 260px; border-radius: 50%;
+  background: #ffd54f; border: 8px solid #111;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-size: 56px; color: #111; transform: rotate(10deg);
+  box-shadow: 8px 8px 0 rgba(0,0,0,.3);
+  animation: float-y 2.2s ease-in-out infinite;
+  z-index: 6;
+}
+.price-badge span { font-size: 34px; }
+.push-guide {
+  font-family: var(--font-impact); font-weight: 400;
+  font-size: 80px; color: #fff; background: #111;
+  padding: 18px 90px; border-radius: 999px;
+  border: 8px solid #fff; box-shadow: 0 0 0 8px #111;
+  white-space: nowrap; z-index: 6;
+}
+/* 4人整列(コマ送りアニメ) */
+.attract-lineup {
+  display: flex; gap: 24px; align-items: flex-end;
+  z-index: 5;
+}
+.lineup-char {
+  width: 380px; height: 560px;
+  background-size: contain; background-position: center bottom; background-repeat: no-repeat;
+  filter: drop-shadow(8px 8px 0 rgba(0,0,0,.25));
+  animation: float-y 1.8s ease-in-out infinite;
+}
+.attract-note {
+  position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%);
+  font-size: 26px; color: #fff; font-weight: 700;
+  text-shadow: 0 2px 6px rgba(0,0,0,.6);
+  z-index: 5; white-space: nowrap;
+}
+
+/* ---------- スロット ---------- */
+.sc-slot { background: repeating-linear-gradient(45deg, #4fc3f7 0 70px, #63cdfc 70px 140px); }
+/* 筐体: frame_slot.png(1456×816・窓は透過)
+   レイヤー: .reel-layer(奥) < .frame-overlay(手前) */
+.slot-cabinet { width: 1456px; height: 816px; }
+.reel-layer { position: absolute; inset: 0; z-index: 1; }
+.frame-overlay {
+  position: absolute; inset: 0; z-index: 2;
+  background-size: contain; background-position: center; background-repeat: no-repeat;
+  pointer-events: none;
+}
+.slot-cabinet.plain {   /* 画像未設定時の仮スタイル */
+  background: #ff5fa2;
+  border: 12px solid #111; border-radius: 40px;
+  box-shadow: 16px 16px 0 rgba(0,0,0,.35);
+}
+.slot-head {
+  position: absolute; left: 50%; top: -56px; transform: translateX(-50%) rotate(-2deg);
+  background: #ffd54f; border: 8px solid #111; border-radius: 18px;
+  font-size: 54px; padding: 6px 60px; color: #111; white-space: nowrap;
+  box-shadow: 6px 6px 0 rgba(0,0,0,.3);
+}
+.reel-window {
+  width: 300px; height: 320px; overflow: hidden;
+  background: #fff; border: 10px solid #111; border-radius: 24px;
+  position: relative;
+}
+/* 筐体画像の窓ガラス位置に重ねるモード(位置・サイズはconfig.layout.reels) */
+.reel-window.on-frame {
+  position: absolute; transform: translate(-50%,-50%);
+  border: none; border-radius: 16px;
+  background: #e9f4f8;
+  box-shadow: inset 0 6px 20px rgba(20,40,80,.35);
+}
+.reel-strip { position: absolute; left: 0; top: 0; width: 100%; will-change: transform; }
+.sym {
+  width: 100%; height: 320px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 150px; color: #fff;
+  -webkit-text-stroke: 8px #111; paint-order: stroke fill;
+  border-bottom: 4px dashed rgba(0,0,0,.15);
+}
+/* スロット両サイドのキャラ(コマ送りアニメ) */
+.slot-side {
+  width: 430px; height: 640px;
+  background-size: contain; background-position: center bottom; background-repeat: no-repeat;
+  filter: drop-shadow(8px 8px 0 rgba(0,0,0,.3));
+  z-index: 3;
+  animation: float-y 2s ease-in-out infinite;
+}
+.slot-push {
+  position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%);
+  font-size: 44px; color: #fff; background: #111; border-radius: 999px;
+  padding: 10px 56px; white-space: nowrap; z-index: 10;
+}
+
+/* ---------- リーチカットイン ---------- */
+.sc-cutin { background: #111; }
+/* 集中線: 拡大縮小+点滅(bg_cutin.png があれば画像、なければCSSパターン) */
+.speedlines {
+  position: absolute; inset: 0;
+  background: repeating-conic-gradient(from 0deg at 50% 50%, #fff 0 3deg, #111 3deg 9deg);
+  background-size: cover; background-position: center;
+  animation: lines-pulse .45s ease-in-out infinite;
+}
+@keyframes lines-pulse {
+  0%, 100% { transform: scale(1);    opacity: 1; }
+  50%      { transform: scale(1.09); opacity: .72; }
+}
+.cutin-panel {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%) rotate(-3deg);
+  width: 900px; padding: 50px 40px 60px;
+  border: 12px solid #111; border-radius: 30px;
+  text-align: center; box-shadow: 20px 20px 0 rgba(0,0,0,.5);
+  animation: cutin-slide .3s cubic-bezier(.2,1.8,.4,1) both;
+}
+@keyframes cutin-slide { from { transform: translate(-160%,-50%) rotate(-3deg); } }
+.cutin-face {
+  width: 300px; height: 300px; margin: 0 auto; border-radius: 50%;
+  border: 10px solid #111; background: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 150px; -webkit-text-stroke: 8px #111; paint-order: stroke fill; color: #fff;
+}
+.cutin-name {
+  font-family: var(--font-impact); font-weight: 400;
+  font-size: 76px; color: #fff; -webkit-text-stroke: 7px #111; paint-order: stroke fill; margin-top: 16px;
+}
+.cutin-game { font-size: 46px; color: #111; background: #fff; border-radius: 999px; display: inline-block; padding: 6px 40px; margin-top: 14px; border: 6px solid #111; }
+
+/* ---------- ミニゲーム共通 ---------- */
+.sc-mg { background: #333; }
+
+/* ============ 一閃カウンター(格闘ゲーム) ============ */
+.mg-issen { background: radial-gradient(circle at 50% 60%, #4a4a5e, #16161f 70%); }
+/* HPバー */
+.hp-row {
+  position: absolute; left: 60px; right: 60px; top: 40px;
+  display: flex; justify-content: space-between; gap: 60px; z-index: 12;
+}
+.hp-block { flex: 1; }
+.hp-name {
+  font-family: var(--font-impact); font-weight: 400;
+  font-size: 34px; color: #fff; -webkit-text-stroke: 4px #111; paint-order: stroke fill;
+  margin-bottom: 6px;
+}
+.hp-block.foe-side .hp-name { text-align: right; }
+.hp-bar {
+  height: 44px; background: #26262e;
+  border: 5px solid #111; border-radius: 10px;
+  overflow: hidden; box-shadow: 4px 4px 0 rgba(0,0,0,.4);
+}
+.hp-fill {
+  height: 100%; width: 100%;
+  background: linear-gradient(180deg, #ffe17a, #ffb300);
+  transition: width .8s cubic-bezier(.2,.8,.3,1);
+}
+.hp-block.foe-side .hp-bar { transform: scaleX(-1); } /* 敵側は右から減る */
+/* ファイター */
+.issen-fighters {
+  position: absolute; left: 47%; top: 54%; transform: translate(-50%,-50%);
+  display: flex; gap: 360px; align-items: flex-end;
+}
+.fighter {
+  width: 480px; height: 600px;
+  background-size: contain; background-position: center bottom; background-repeat: no-repeat;
+  filter: drop-shadow(10px 10px 0 rgba(0,0,0,.4));
+}
+.fighter.me { width: 1040px; height: 950px; }         /* プレイヤー(1.3倍) */
+.fighter.foe-img { width: 650px; height: 806px; }     /* 敵(1.3倍) */
+/* 決着アニメ: 勝者は相手へ踏み込んで戻る / 敗者はぶるぶる震える */
+@keyframes lunge      { 0%,100% { transform: translateX(0); } 40% { transform: translateX(260px); } }
+@keyframes foe-lunge  { 0%,100% { transform: scaleX(-1) translateX(0); } 40% { transform: scaleX(-1) translateX(260px); } }
+@keyframes tremble     { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-12px); } 75% { transform: translateX(12px); } }
+@keyframes foe-tremble { 0%,100% { transform: scaleX(-1) translateX(0); } 25% { transform: scaleX(-1) translateX(-12px); } 75% { transform: scaleX(-1) translateX(12px); } }
+.fighter.lunge       { animation: lunge .5s ease-out 1; }
+.fighter.foe-lunge   { animation: foe-lunge .5s ease-out 1; }
+.fighter.tremble     { animation: tremble .14s linear infinite; }
+.fighter.foe-tremble { animation: foe-tremble .14s linear infinite; }
+.fighter.plain {   /* 画像未設定時の仮スタイル */
+  width: 240px; height: 420px; border-radius: 30px;
+  border: 10px solid #111; box-shadow: 10px 10px 0 rgba(0,0,0,.4);
+  display: flex; align-items: flex-start; justify-content: center;
+  font-size: 90px; color: #fff; -webkit-text-stroke: 6px #111; paint-order: stroke fill;
+  padding-top: 20px;
+}
+.fighter.foe-img { transform: scaleX(-1); } /* 敵は左向きに反転(必要に応じて) */
+.issen-ready {
+  position: absolute; left: 50%; top: 40%; transform: translate(-50%,-50%);
+  font-family: var(--font-impact); font-weight: 400;
+  font-size: 120px; color: #fff; -webkit-text-stroke: 8px #111; paint-order: stroke fill;
+  z-index: 10; white-space: nowrap;
+}
+.issen-signal {
+  position: absolute; left: 50%; top: 40%; transform: translate(-50%,-50%) rotate(-5deg);
+  font-family: var(--font-impact); font-weight: 400;
+  font-size: 210px; color: #ff1744; -webkit-text-stroke: 10px #fff; paint-order: stroke fill;
+  z-index: 10; white-space: nowrap;
+  animation: pop-in .12s both;
+}
+.issen-fx {
+  position: absolute; width: 600px; height: 450px;
+  background-size: contain; background-position: center; background-repeat: no-repeat;
+  z-index: 11;
+  animation: pop-in .12s both;
+}
+.zubam {
+  position: absolute; left: 50%; top: 50%;
+  font-family: var(--font-impact); font-weight: 400;
+  font-size: 200px; color: #ffd54f; -webkit-text-stroke: 12px #111; paint-order: stroke fill;
+  transform: translate(-50%,-50%) rotate(-12deg); z-index: 12; white-space: nowrap;
+  animation: pop-in .15s both;
+}
+
+/* ============ ジャスト・ビート(bpm同期) ============ */
+.mg-beat { background: #ffe082; }
+/* bpmに合わせて跳ねる(durationはJSで --beat に設定)
+   ※位置決め用transformと競合しないよう、内側要素(.bounce-inner)に付ける */
+.bpm-bounce { animation: bpm-bounce var(--beat, .5s) ease-in-out infinite; transform-origin: center bottom; }
+.bounce-inner {
+  width: 100%; height: 100%;
+  background-size: contain; background-position: center bottom; background-repeat: no-repeat;
+}
+@keyframes bpm-bounce {
+  0%, 100% { transform: scale(1, 1); }
+  30%      { transform: scale(1.06, .93); }
+  60%      { transform: scale(.97, 1.05); }
+}
+.beat-speaker {
+  position: absolute; bottom: 30px;
+  width: 320px; height: 320px;
+  background-size: contain; background-position: center bottom; background-repeat: no-repeat;
+  z-index: 3;
+}
+.beat-speaker.left  { left: 60px; }
+.beat-speaker.right { right: 60px; }
+/* 中央スピーカー: 背景と同じ縮尺(全画面cover)でテンポに合わせて振動 */
+.beat-speaker.center {
+  left: 0; right: 0; top: 0; bottom: 0;
+  width: auto; height: auto; z-index: 2;
+  background-size: cover !important;
+  background-position: center !important;
+  animation: speaker-vibe var(--beat, .5s) linear infinite;
+}
+@keyframes speaker-vibe {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-6px, 3px); }
+  40% { transform: translate(5px, -4px); }
+  60% { transform: translate(-4px, -2px); }
+  80% { transform: translate(6px, 3px); }
+}
+.beat-dancer {
+  position: absolute; left: 50%; top: 56%; transform: translate(-50%,-50%);
+  width: 460px; height: 560px;
+  background-size: contain; background-position: center bottom; background-repeat: no-repeat;
+  filter: drop-shadow(8px 8px 0 rgba(0,0,0,.25));
+  z-index: 4;
+}
+.beat-lane {
+  /* 長さ105%(1512px)・50px下げ */
+  position: absolute; left: 204px; right: 204px; top: calc(78% + 50px); height: 12px;
+  background: #111; border-radius: 6px; z-index: 5;
+}
+.beat-ring {
+  /* 判定リングは左端(ノーツは右→左に流れる) */
+  position: absolute; left: -80px; top: 50%; transform: translate(0,-50%);
+  width: 170px; height: 170px; border-radius: 50%;
+  border: 14px solid #111; background: #fff;
+}
+.beat-ring.img { border: none; background: transparent; background-size: contain !important; }
+.beat-note {
+  position: absolute; top: 50%; transform: translate(-50%,-50%);
+  width: 120px; height: 120px; border-radius: 50%;
+  background: #ff5fa2; border: 10px solid #111;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 54px; color: #fff; z-index: 6;
+}
+.beat-note.img { border: none; background: transparent; background-size: contain !important; border-radius: 0; }
+.beat-count {
+  position: absolute; left: 50%; top: 20%; transform: translate(-50%,-50%);
+  font-family: var(--font-pixel); font-weight: 400;
+  font-size: 170px; color: #111; z-index: 7;
+  text-shadow: 6px 6px 0 rgba(255,255,255,.7);
+}
+
+/* ============ フルパワーチャージ(歯医者) ============ */
+.mg-charge { background: repeating-linear-gradient(-45deg, #b2ebf2 0 90px, #80deea 90px 180px); }
+.charge-doctor {
+  position: absolute; left: 22%; top: 50%; transform: translate(-50%,-50%);
+  width: 700px; height: 900px;
+  z-index: 4;
+}
+.fit-inner {   /* 素材ごとのサイズ補正用(transformで拡大) */
+  width: 100%; height: 100%;
+  background-size: contain; background-position: center bottom; background-repeat: no-repeat;
+  filter: drop-shadow(8px 8px 0 rgba(0,0,0,.25));
+}
+.charge-tooth {
+  /* 倍サイズ */
+  position: absolute; left: 66%; top: 44%; transform: translate(-50%,-50%);
+  width: 1150px; height: 700px;
+  background-size: contain; background-position: center; background-repeat: no-repeat;
+  filter: drop-shadow(6px 6px 0 rgba(0,0,0,.2));
+  z-index: 3;
+}
+.charge-tooth.treating { animation: tooth-rattle .12s linear infinite; }
+@keyframes tooth-rattle {
+  0%,100% { margin-left: 0; } 25% { margin-left: -8px; } 75% { margin-left: 8px; }
+}
+.charge-target {   /* 画像未設定時の仮ターゲット */
+  position: absolute; left: 68%; top: 42%; transform: translate(-50%,-50%);
+  width: 300px; height: 300px; border-radius: 50%;
+  background: #ef5350; border: 12px solid #111;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 110px; color: #fff; -webkit-text-stroke: 7px #111; paint-order: stroke fill;
+}
+/* 会話バブル */
+.talk-bubble {
+  position: absolute; left: 50%; bottom: 200px; transform: translateX(-50%);
+  min-width: 800px; max-width: 1400px;
+  background: #fff; border: 7px solid #111; border-radius: 26px;
+  padding: 22px 44px; z-index: 14;
+  box-shadow: 8px 8px 0 rgba(0,0,0,.3);
+  font-size: 40px; color: #111; line-height: 1.5;
+}
+.talk-bubble .talk-name {
+  display: inline-block; font-size: 30px; color: #fff; background: #111;
+  border-radius: 999px; padding: 2px 26px; margin-bottom: 8px;
+}
+.charge-bar {
+  position: absolute; left: 50%; top: 76%; transform: translate(-50%,-50%);
+  width: 1200px; height: 110px;
+  background: #fff; border: 10px solid #111; border-radius: 20px;
+  overflow: hidden; z-index: 10;
+}
+.charge-zone { position: absolute; top: 0; bottom: 0; }
+.charge-fill {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+  background: repeating-linear-gradient(90deg, #ff5fa2 0 40px, #ff8ac0 40px 80px);
+  border-right: 8px solid #111;
+}
+.charge-label { position: absolute; top: 100%; margin-top: 14px; font-size: 30px; color: #111; transform: translateX(-50%); white-space: nowrap; }
+
+/* ============ ときめきトーク(恋愛シム) ============ */
+.mg-tokimeki { background: radial-gradient(circle at 30% 20%, #f8bbd0, #f48fb1 60%, #ec6fa8); }
+/* 中央キャラクター */
+.toki-char {
+  /* 素材(2744×1536)はキャラが中央48%幅・下端まで描画されているため、
+     大きめの箱に bottom 揃えで表示(キャラ実寸≈950px・下限がウインドウに約50pxかぶる) */
+  position: absolute; left: 50%; top: 37%; transform: translate(-50%,-50%);
+  width: 1460px; height: 810px;
+  background-size: contain; background-position: center; background-repeat: no-repeat;
+  filter: drop-shadow(0 10px 24px rgba(120,20,60,.35));
+  z-index: 3;
+}
+.toki-char.plain {   /* 画像未設定時 */
+  width: 340px; height: 480px; border-radius: 40px;
+  border: 10px solid #fff; box-shadow: 0 0 0 8px #b39ddb;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 140px; color: #fff; -webkit-text-stroke: 8px #111; paint-order: stroke fill;
+}
+/* メッセージウインドウ(底部中央/紺地・白文字・濃い青の縁取り・角丸) */
+.toki-window {
+  position: absolute; left: 50%; bottom: 30px; transform: translateX(-50%);
+  width: 1500px; min-height: 300px;
+  background: rgba(18, 28, 68, .94);          /* 紺地 */
+  border: 8px solid #0a1440;                  /* 濃い青の縁取り */
+  border-radius: 34px;                        /* 角丸 */
+  box-shadow: 0 0 0 3px rgba(255,255,255,.35), 0 14px 30px rgba(0,0,0,.35);
+  padding: 26px 56px 30px; z-index: 10;
+  color: #fff;
+}
+.toki-speaker {
+  display: inline-block;
+  font-size: 32px; color: #fff;
+  background: #C8102E; border: 4px solid #0a1440; border-radius: 999px;
+  padding: 2px 34px; margin-bottom: 12px;
+}
+.toki-speaker.you { background: #1565c0; }
+.toki-text { font-size: 42px; line-height: 1.55; min-height: 66px; }
+.toki-text .caret { animation: blink .8s steps(2) infinite; }
+.toki-choices { margin-top: 10px; }
+.toki-choice {
+  font-size: 38px; color: rgba(255,255,255,.55);
+  background: rgba(255,255,255,.06);
+  border: 4px solid rgba(255,255,255,.25); border-radius: 999px;
+  padding: 8px 30px; margin: 10px 0; text-align: center;
+  transition: transform .05s;
+}
+.toki-choice.sel {
+  color: #fff; background: #ff5fa2; border-color: #fff;
+  transform: scale(1.03);
+}
+.heart-burst { position: absolute; font-size: 90px; animation: float-y 1s ease-in-out infinite; z-index: 11; }
+
+/* ============ 4人まとめてキメろ!(マリオパーティ風) ============ */
+.mg-bonus { background: repeating-conic-gradient(from 0deg at 50% 120%, #7e57c2 0 14deg, #9575cd 14deg 28deg); }
+.dial {
+  position: absolute; left: 50%; top: 44%; transform: translate(-50%,-50%);
+  width: 520px; height: 520px; border-radius: 50%;
+  border: 14px solid #111; background: #fff;
+  box-shadow: 12px 12px 0 rgba(0,0,0,.35);
+}
+.dial-zone { position: absolute; inset: 0; border-radius: 50%; }
+.dial-hole {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+  width: 300px; height: 300px; border-radius: 50%;
+  background: #fff; border: 10px solid #111;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 120px; color: #fff; -webkit-text-stroke: 8px #111; paint-order: stroke fill;
+  z-index: 3; overflow: hidden;
+}
+.dial-needle {
+  position: absolute; left: 50%; top: 50%;
+  width: 16px; height: 250px;
+  background: #111; border-radius: 8px;
+  transform-origin: 50% 100%;
+  transform: translate(-50%,-100%) rotate(0deg);
+  z-index: 4;
+}
+.bonus-members {
+  position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%);
+  display: flex; gap: 40px;
+}
+.bslot {
+  width: 150px; height: 150px; border-radius: 24px;
+  border: 8px solid #111; display: flex; align-items: center; justify-content: center;
+  font-size: 70px; color: #fff; -webkit-text-stroke: 5px #111; paint-order: stroke fill;
+  background: #9e9e9e; opacity: .55; overflow: hidden;
+}
+.bslot.active { opacity: 1; animation: float-y 0.7s ease-in-out infinite; }
+.bslot.done-ok { opacity: 1; box-shadow: 0 0 0 8px #ffd54f; }
+.bslot.done-ng { opacity: .4; filter: grayscale(1); }
+
+/* ============ 復活チャレンジ ============ */
+.mg-revival { background: radial-gradient(circle at 50% 30%, #5c6bc0, #1a237e 75%); }
+.rev-cheer {
+  position: absolute; left: 50%; top: 200px; transform: translateX(-50%);
+  display: flex; gap: 30px;
+}
+.rev-cheer .chip { width: 130px; height: 130px; font-size: 60px; }
+.chip {
+  width: 170px; height: 170px; border-radius: 26px;
+  border: 7px solid #111; box-shadow: 7px 7px 0 rgba(0,0,0,.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 80px; color: #fff; -webkit-text-stroke: 5px #111; paint-order: stroke fill;
+  animation: float-y 1.8s ease-in-out infinite;
+  overflow: hidden;
+}
+.rev-bar {
+  position: absolute; left: 50%; top: 56%; transform: translate(-50%,-50%);
+  width: 1300px; height: 120px;
+  background: #fff; border: 10px solid #111; border-radius: 24px;
+}
+.rev-zone {
+  position: absolute; top: 0; bottom: 0;
+  background: repeating-linear-gradient(90deg, #ffd54f 0 30px, #ffca28 30px 60px);
+  border-left: 6px solid #111; border-right: 6px solid #111;
+}
+.rev-marker {
+  position: absolute; top: -34px; bottom: -34px; width: 26px;
+  background: #ff1744; border: 6px solid #111; border-radius: 10px;
+  transform: translateX(-50%);
+}
+
+/* ---------- 結果画面 ---------- */
+.sc-result { background: repeating-conic-gradient(from 0deg at 50% 46%, #ffd54f 0 12deg, #ffca28 12deg 24deg); }
+.sc-result.rank-low { background: repeating-conic-gradient(from 0deg at 50% 46%, #90a4ae 0 12deg, #78909c 12deg 24deg); }
+.result-stars {
+  position: absolute; left: 50%; top: 300px; transform: translate(-50%,-50%);
+  font-size: 200px; color: #ffd54f; -webkit-text-stroke: 10px #111; paint-order: stroke fill;
+  white-space: nowrap;
+}
+.result-rank {
+  position: absolute; left: 50%; top: 510px; transform: translate(-50%,-50%) rotate(-2deg);
+  font-family: var(--font-impact); font-weight: 400;
+  font-size: 120px; color: #fff; -webkit-text-stroke: 9px #111; paint-order: stroke fill;
+  white-space: nowrap;
+}
+.result-prize {
+  position: absolute; left: 50%; top: 690px; transform: translateX(-50%);
+  font-size: 52px; color: #111; background: #fff;
+  border: 8px solid #111; border-radius: 999px; padding: 16px 70px;
+  box-shadow: 8px 8px 0 rgba(0,0,0,.3); white-space: nowrap;
+}
+.result-bonus {
+  position: absolute; left: 50%; top: 820px; transform: translateX(-50%) rotate(-2deg);
+  font-family: var(--font-impact); font-weight: 400;
+  font-size: 56px; color: #fff; background: #d81b60;
+  border: 8px solid #111; border-radius: 20px; padding: 10px 50px;
+  box-shadow: 8px 8px 0 rgba(0,0,0,.3); white-space: nowrap;
+}
+.result-note {
+  position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%);
+  font-size: 32px; color: rgba(0,0,0,.65); white-space: nowrap;
+}
